@@ -7,7 +7,7 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
-import AsyncStorage from '@react-native-async-storage/async-storage'; // ★ 追加
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function LoginScreen({ navigation }) {
   const [username, setUsername] = useState("");
@@ -30,14 +30,9 @@ export default function LoginScreen({ navigation }) {
 
       if (response.ok) {
         const data = await response.json();
-        console.log("Login success:", data);
-
-        // ★ トークン保存処理を追加
         await AsyncStorage.setItem("token", data.token);
-        console.log("Token saved:", data.token);
-
         Alert.alert("Success", "Logged in successfully!");
-        navigation.navigate("Home");  
+        navigation.navigate("Home");
       } else {
         Alert.alert("Login Failed", "Invalid username or password.");
       }
@@ -67,9 +62,18 @@ export default function LoginScreen({ navigation }) {
           onChangeText={setPassword}
         />
       </View>
+
       <TouchableOpacity style={styles.loginButton} onPress={handleLogin}>
         <Text style={styles.loginText}>Login</Text>
       </TouchableOpacity>
+
+      {/* Register Navigation Link */}
+      <View style={styles.registerContainer}>
+        <Text>Don't have an account? </Text>
+        <TouchableOpacity onPress={() => navigation.navigate("Register")}>
+          <Text style={styles.registerLink}>Register here</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -108,5 +112,13 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     textAlign: "center",
+  },
+  registerContainer: {
+    flexDirection: "row",
+    marginTop: 10,
+  },
+  registerLink: {
+    color: "#1e90ff",
+    fontWeight: "bold",
   },
 });

@@ -17,9 +17,11 @@ import {
   Share
 } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { Accelerometer } from 'expo-sensors';              // ← NEW
+import { Accelerometer } from 'expo-sensors';              
 import { Swipeable } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
+
 
 /* ---------- Shake-related constants ---------- */
 const SHAKE_THRESHOLD_G = 1.6;      // g-force to detect shake
@@ -64,7 +66,7 @@ export default function PlaylistScreen() {
         now - lastShakeRef.current > SHAKE_COOLDOWN_MS
       ) {
         lastShakeRef.current = now;
-        handleShake();                                        // ← NEW
+        handleShake();                                        
       }
     });
 
@@ -302,24 +304,34 @@ export default function PlaylistScreen() {
     [selectedSongIds]
   );
 
-  const renderPlaylist = ({ item }) => {
-    const rightActions = () => (
-      <TouchableOpacity
-        style={styles.swipeDeleteButton}
-        onPress={() =>
-          Alert.alert('Confirm', 'Delete this playlist?', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'OK', onPress: () => handleDeletePlaylist(item._id) }
-          ])
-        }
-      >
-        <Text style={styles.deleteText}>Delete</Text>
-      </TouchableOpacity>
-    );
+  const renderPlaylist = ({ item, drag, isActive }) => {
+  const rightActions = () => (
+    <TouchableOpacity
+      style={styles.swipeDeleteButton}
+      onPress={() =>
+        Alert.alert('Confirm', 'Delete this playlist?', [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'OK', onPress: () => handleDeletePlaylist(item._id) },
+        ])
+      }
+    >
+      <Text style={styles.deleteText}>Delete</Text>
+    </TouchableOpacity>
+  );
 
-    return (
-      <Swipeable renderRightActions={rightActions}>
-        <View style={styles.item}>
+  return (
+    <ScaleDecorator>
+      {/* Disable swipe while dragging */}
+      <Swipeable renderRightActions={rightActions} enabled={!isActive}>
+        <TouchableOpacity
+          style={[
+            styles.item,
+            isActive && { opacity: 0.7 },
+          ]}
+          onLongPress={drag}
+          delayLongPress={200}
+          activeOpacity={1}
+        >
           <Text style={styles.name}>{item.name}</Text>
           <Text style={styles.description}>{item.description}</Text>
 
@@ -360,10 +372,11 @@ export default function PlaylistScreen() {
           >
             <Text style={styles.shareText}>Share</Text>
           </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       </Swipeable>
-    );
-  };
+    </ScaleDecorator>
+  );
+};
 
   /* ---------- JSX ---------- */
   return (
@@ -374,11 +387,12 @@ export default function PlaylistScreen() {
       />
 
       <Text style={styles.header}>Your Playlists</Text>
-      <FlatList
-        data={playlists}
-        keyExtractor={(item) => item._id}
-        renderItem={renderPlaylist}
-      />
+      <DraggableFlatList
+  data={playlists}
+  keyExtractor={(item) => item._id}
+  renderItem={renderPlaylist}
+  onDragEnd={({ data }) => setPlaylists(data)}
+/>
 
       {/* Create / Edit Modal */}
       <Modal
