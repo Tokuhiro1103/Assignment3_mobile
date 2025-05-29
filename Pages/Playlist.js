@@ -1,16 +1,24 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, TextInput, Button, FlatList,
-  StyleSheet, Alert, TouchableOpacity
+  View,
+  Text,
+  TextInput,
+  Button,
+  FlatList,
+  StyleSheet,
+  Alert,
+  TouchableOpacity,
+  Modal,
+  Share
 } from 'react-native';
-import { Share } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { Swipeable } from 'react-native-gesture-handler';
-
-
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function PlaylistScreen() {
+  /* ────────────────────────────────
+     State
+  ──────────────────────────────── */
   const [playlists, setPlaylists] = useState([]);
   const [songs, setSongs] = useState([]);
   const [selectedSongIds, setSelectedSongIds] = useState([]);
@@ -18,338 +26,291 @@ export default function PlaylistScreen() {
   const [description, setDescription] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [editPlaylist, setEditPlaylist] = useState(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
+  /* ────────────────────────────────
+     Initial fetch & notification permission
+  ──────────────────────────────── */
   useEffect(() => {
     fetchPlaylists();
     fetchSongs();
+
+    (async () => {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        await Notifications.requestPermissionsAsync();
+      }
+    })();
   }, []);
 
+  /* ────────────────────────────────
+     Data fetch helpers
+  ──────────────────────────────── */
   const fetchPlaylists = async () => {
     try {
       const token = await AsyncStorage.getItem('token');
-      const response = await fetch('https://n11705264.ifn666.com/assignment2test/api/playlists', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json();
+      const res = await fetch(
+        'https://n11705264.ifn666.com/assignment2test/api/playlists',
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
       setPlaylists(data);
-    } catch (error) {
-      console.error('Error fetching playlists:', error);
+    } catch (err) {
+      console.error('Error fetching playlists:', err);
     }
   };
 
   const fetchSongs = async () => {
     try {
-      const response = await fetch("https://n11705264.ifn666.com/assignment2test/api/songs");
-      const data = await response.json();
+      const res = await fetch(
+        'https://n11705264.ifn666.com/assignment2test/api/songs'
+      );
+      const data = await res.json();
       setSongs(data);
-    } catch (error) {
-      console.error("Error fetching songs:", error);
+    } catch (err) {
+      console.error('Error fetching songs:', err);
     }
   };
 
+  /* ────────────────────────────────
+     Selection logic
+  ──────────────────────────────── */
   const toggleSongSelection = (songId) => {
-    setSelectedSongIds(prev =>
+    setSelectedSongIds((prev) =>
       prev.includes(songId)
-        ? prev.filter(id => id !== songId)
+        ? prev.filter((id) => id !== songId)
         : [...prev, songId]
     );
   };
 
-  // const handleCreatePlaylist = async () => {
-  //   if (!name || selectedSongIds.length === 0) {
-  //     Alert.alert("Error", "Please enter a name and select at least one song.");
-  //     return;
-  //   }
-
-  //   try {
-  //     const token = await AsyncStorage.getItem('token');
-  //     const response = await fetch('https://n11705264.ifn666.com/assignment2test/api/playlists', {
-  //       method: 'POST',
-  //       headers: {
-  //         'Content-Type': 'application/json',
-  //         Authorization: `Bearer ${token}`,
-  //       },
-  //       body: JSON.stringify({
-  //         name,
-  //         description,
-  //         songs: selectedSongIds
-  //       }),
-  //     });
-
-  //     if (response.ok) {
-  //       Alert.alert("Success", "Playlist created!");
-  //       setName('');
-  //       setDescription('');
-  //       setSelectedSongIds([]);
-  //       fetchPlaylists();
-  //     } else {
-  //       const errorText = await response.text();
-  //       console.error("Create failed:", errorText);
-  //       Alert.alert("Failed", "Could not create playlist.");
-  //     }
-  //   } catch (error) {
-  //     console.error("Error creating playlist:", error);
-  //   }
-  // };
-
+  /* ────────────────────────────────
+     Create playlist
+  ──────────────────────────────── */
   const handleCreatePlaylist = async () => {
-  if (!name || selectedSongIds.length === 0) {
-    Alert.alert("Error", "Please enter a name and select at least one song.");
-    return;
-  }
-
-  try {
-    const token = await AsyncStorage.getItem('token');
-    const response = await fetch('https://n11705264.ifn666.com/assignment2test/api/playlists', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        name,
-        description,
-        songs: selectedSongIds
-      }),
-    });
-
-    if (response.ok) {
-      await Notifications.scheduleNotificationAsync({
-        content: {
-          title: "🎵 Playlist Created!",
-          body: `Playlist "${name}" has been successfully created.`,
-        },
-        trigger: null, // 即時通知
-      });
-
-      Alert.alert("Success", "Playlist created!");
-      setName('');
-      setDescription('');
-      setSelectedSongIds([]);
-      fetchPlaylists();
-    } else {
-      const errorText = await response.text();
-      console.error("Create failed:", errorText);
-      Alert.alert("Failed", "Could not create playlist.");
+    if (!name || selectedSongIds.length === 0) {
+      Alert.alert('Error', 'Please enter a name and select at least one song.');
+      return;
     }
-  } catch (error) {
-    console.error("Error creating playlist:", error);
-  }
-};
 
-
-  const handleDeletePlaylist = async (playlistId) => {
     try {
       const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`https://n11705264.ifn666.com/assignment2test/api/playlists/${playlistId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await fetch(
+        'https://n11705264.ifn666.com/assignment2test/api/playlists',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ name, description, songs: selectedSongIds })
+        }
+      );
 
-      if (response.ok) {
-        Alert.alert("Deleted", "Playlist has been deleted.");
+      if (res.ok) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: '🎵 Playlist Created!',
+            body: `"${name}" was successfully created.`
+          },
+          trigger: null
+        });
+
+        resetForm();
         fetchPlaylists();
+        Alert.alert('Success', 'Playlist created.');
       } else {
-        const text = await response.text();
-        console.error("Delete failed:", text);
-        Alert.alert("Error", "Could not delete playlist.");
+        const txt = await res.text();
+        console.error('Create failed:', txt);
+        Alert.alert('Failed', 'Could not create playlist.');
       }
-    } catch (error) {
-      console.error("Error deleting playlist:", error);
-      Alert.alert("Error", "An error occurred.");
+    } catch (err) {
+      console.error('Error creating playlist:', err);
     }
   };
 
+  /* ────────────────────────────────
+     Update playlist
+  ──────────────────────────────── */
   const handleUpdatePlaylist = async () => {
+    if (!name || selectedSongIds.length === 0) {
+      Alert.alert('Error', 'Please enter a name and select at least one song.');
+      return;
+    }
+
     try {
       const token = await AsyncStorage.getItem('token');
-      const response = await fetch(`https://n11705264.ifn666.com/assignment2test/api/playlists/${editPlaylist._id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          name: editPlaylist.name,
-          description: editPlaylist.description,
-          songs: editPlaylist.songs.map((s) => typeof s === 'string' ? s : s._id),
-        }),
-      });
+      const res = await fetch(
+        `https://n11705264.ifn666.com/assignment2test/api/playlists/${editPlaylist._id}`,
+        {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({ name, description, songs: selectedSongIds })
+        }
+      );
 
-      if (response.ok) {
-        Alert.alert("Success", "Playlist updated!");
-        setIsEditing(false);
-        setEditPlaylist(null);
+      if (res.ok) {
+        resetForm();
         fetchPlaylists();
+        Alert.alert('Success', 'Playlist updated.');
       } else {
-        const errorText = await response.text();
-        console.error("Update failed:", errorText);
-        Alert.alert("Error", "Could not update playlist.");
+        const txt = await res.text();
+        console.error('Update failed:', txt);
+        Alert.alert('Failed', 'Could not update playlist.');
       }
-    } catch (error) {
-      console.error("Error updating playlist:", error);
+    } catch (err) {
+      console.error('Error updating playlist:', err);
     }
   };
 
-  const handleSharePlaylist = async (playlist) => {
-  try {
-    const songList = playlist.songs
-      .map((song) => `- ${song.title} by ${song.artist?.name || 'Unknown'}`)
-      .join('\n');
+  /* ────────────────────────────────
+     Delete playlist
+  ──────────────────────────────── */
+  const handleDeletePlaylist = async (id) => {
+    try {
+      const token = await AsyncStorage.getItem('token');
+      await fetch(
+        `https://n11705264.ifn666.com/assignment2test/api/playlists/${id}`,
+        {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` }
+        }
+      );
+      fetchPlaylists();
+    } catch (err) {
+      console.error('Error deleting playlist:', err);
+    }
+  };
 
-    const message = `🎵 My Playlist: ${playlist.name}\n\n${playlist.description}\n\n${songList}`;
+
+  /* ────────────────────────────────
+   Share playlist (with song list)
+──────────────────────────────── */
+const handleSharePlaylist = async (pl) => {
+  try {
+    // Make an array of song titles (fallback to the raw value if title is missing)
+    const songLines = pl.songs?.map((s) =>
+      typeof s === 'string' ? `• ${s}` : `• ${s.title}`
+    ) || [];
+
+    // Compose the share text
+    const message = [
+      `🎧  Playlist: ${pl.name}`,
+      pl.description || '',
+      '',
+      'Songs:',
+      ...songLines
+    ].join('\n');
 
     await Share.share({
-      message,
+      title: pl.name,
+      message         // same string for iOS & Android
     });
-  } catch (error) {
-    console.error('Error sharing playlist:', error);
+  } catch (err) {
+    console.error('Error sharing playlist:', err);
+    Alert.alert('Error', 'Failed to share the playlist.');
   }
 };
 
 
-  const renderSong = ({ item }) => (
-    <TouchableOpacity
-      onPress={() => toggleSongSelection(item._id)}
-      style={[
-        styles.songItem,
-        selectedSongIds.includes(item._id) && styles.songItemSelected
-      ]}
-    >
-      <Text>{item.title} by {item.artist?.name || "Unknown"}</Text>
-    </TouchableOpacity>
+  /* ────────────────────────────────
+     Helper to reset form & state
+  ──────────────────────────────── */
+  const resetForm = () => {
+    setIsModalVisible(false);
+    setIsEditing(false);
+    setEditPlaylist(null);
+    setName('');
+    setDescription('');
+    setSelectedSongIds([]);
+  };
+
+  /* ────────────────────────────────
+     Renderers
+  ──────────────────────────────── */
+  const renderSong = useCallback(
+    ({ item }) => (
+      <TouchableOpacity
+        onPress={() => toggleSongSelection(item._id)}
+        style={[
+          styles.songItem,
+          selectedSongIds.includes(item._id) && styles.songItemSelected
+        ]}
+      >
+        <Text>
+          {item.title} by {item.artist?.name || 'Unknown'}
+        </Text>
+      </TouchableOpacity>
+    ),
+    [selectedSongIds]
   );
 
-  // const renderPlaylist = ({ item }) => (
-  //   <View style={styles.item}>
-  //     <Text style={styles.name}>{item.name}</Text>
-  //     <Text style={styles.description}>{item.description}</Text>
+  const renderPlaylist = ({ item }) => {
+    const rightActions = () => (
+      <TouchableOpacity
+        style={styles.swipeDeleteButton}
+        onPress={() =>
+          Alert.alert('Confirm', 'Delete this playlist?', [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'OK', onPress: () => handleDeletePlaylist(item._id) }
+          ])
+        }
+      >
+        <Text style={styles.deleteText}>Delete</Text>
+      </TouchableOpacity>
+    );
 
-  //     {item.songs && item.songs.length > 0 && (
-  //       <View style={{ marginTop: 8 }}>
-  //         <Text style={{ fontWeight: 'bold' }}>Songs:</Text>
-  //         {item.songs.map((song) => (
-  //           <Text key={song._id} style={styles.songInPlaylist}>
-  //             - {song.title} by {song.artist?.name || 'Unknown'}
-  //           </Text>
-  //         ))}
-  //       </View>
-  //     )}
+    return (
+      <Swipeable renderRightActions={rightActions}>
+        <View style={styles.item}>
+          <Text style={styles.name}>{item.name}</Text>
+          <Text style={styles.description}>{item.description}</Text>
 
-  //     <TouchableOpacity
-  //       style={styles.editButton}
-  //       onPress={() => {
-  //         const songIds = item.songs.map((s) => typeof s === 'string' ? s : s._id);
-  //         setEditPlaylist({ ...item, songs: songIds });
-  //         setIsEditing(true);
-  //       }}
-  //     >
-  //       <Text style={styles.editText}>Edit</Text>
-  //     </TouchableOpacity>
+          {!!item.songs?.length && (
+            <View style={{ marginTop: 8 }}>
+              <Text style={{ fontWeight: 'bold' }}>Songs:</Text>
+              {item.songs.map((s) => (
+                <Text key={typeof s === 'string' ? s : s._id} style={styles.songInPlaylist}>
+                  - {typeof s === 'string' ? s : s.title}
+                </Text>
+              ))}
+            </View>
+          )}
 
-  //       <TouchableOpacity
-  //         style={styles.shareButton}
-  //         onPress={() => handleSharePlaylist(item)}
-  //       >
-  //       <Text style={styles.shareText}>Share</Text>
-  //       </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => {
+              const ids = item.songs.map((s) => (typeof s === 'string' ? s : s._id));
+              setEditPlaylist({ ...item, songs: ids });
+              setSelectedSongIds(ids);
+              setName(item.name);
+              setDescription(item.description);
+              setIsEditing(true);
+              setIsModalVisible(true);
+            }}
+          >
+            <Text style={styles.editText}>Edit</Text>
+          </TouchableOpacity>
 
-  //     <TouchableOpacity
-  //       style={styles.deleteButton}
-  //       onPress={() =>
-  //         Alert.alert("Confirm", "Delete this playlist?", [
-  //           { text: "Cancel", style: "cancel" },
-  //           { text: "OK", onPress: () => handleDeletePlaylist(item._id) },
-  //         ])
-  //       }
-  //     >
-  //       <Text style={styles.deleteText}>Delete</Text>
-  //     </TouchableOpacity>
-  //   </View>
-  // );
+          <TouchableOpacity
+            style={styles.shareButton}
+            onPress={() => handleSharePlaylist(item)}
+          >
+            <Text style={styles.shareText}>Share</Text>
+          </TouchableOpacity>
+        </View>
+      </Swipeable>
+    );
+  };
 
-
-
-const renderPlaylist = ({ item }) => {
-  const renderRightActions = () => (
-    <TouchableOpacity
-      style={styles.swipeDeleteButton}
-      onPress={() =>
-        Alert.alert("Confirm", "Delete this playlist?", [
-          { text: "Cancel", style: "cancel" },
-          { text: "OK", onPress: () => handleDeletePlaylist(item._id) },
-        ])
-      }
-    >
-      <Text style={styles.deleteText}>Delete</Text>
-    </TouchableOpacity>
-  );
-
-  return (
-    <Swipeable renderRightActions={renderRightActions}>
-      <View style={styles.item}>
-        <Text style={styles.name}>{item.name}</Text>
-        <Text style={styles.description}>{item.description}</Text>
-
-        {item.songs && item.songs.length > 0 && (
-          <View style={{ marginTop: 8 }}>
-            <Text style={{ fontWeight: 'bold' }}>Songs:</Text>
-            {item.songs.map((song) => (
-              <Text key={song._id} style={styles.songInPlaylist}>
-                - {song.title} by {song.artist?.name || 'Unknown'}
-              </Text>
-            ))}
-          </View>
-        )}
-
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => {
-            const songIds = item.songs.map((s) =>
-              typeof s === 'string' ? s : s._id
-            );
-            setEditPlaylist({ ...item, songs: songIds });
-            setIsEditing(true);
-          }}
-        >
-          <Text style={styles.editText}>Edit</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.shareButton}
-          onPress={() => handleSharePlaylist(item)}
-        >
-          <Text style={styles.shareText}>Share</Text>
-        </TouchableOpacity>
-      </View>
-    </Swipeable>
-  );
-};
-
-
+  /* ────────────────────────────────
+     JSX
+  ──────────────────────────────── */
   return (
     <View style={styles.container}>
-      <Text style={styles.header}>Create Playlist</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Playlist name"
-        value={name}
-        onChangeText={setName}
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Description"
-        value={description}
-        onChangeText={setDescription}
-      />
-      <Text style={styles.subHeader}>Select Songs</Text>
-      <FlatList
-        data={songs}
-        keyExtractor={(item) => item._id}
-        renderItem={renderSong}
-        style={styles.songList}
-      />
-      <Button title="Create" onPress={handleCreatePlaylist} />
+      <Button title="Create Playlist" onPress={() => setIsModalVisible(true)} />
 
       <Text style={styles.header}>Your Playlists</Text>
       <FlatList
@@ -358,141 +319,127 @@ const renderPlaylist = ({ item }) => {
         renderItem={renderPlaylist}
       />
 
-      {isEditing && editPlaylist && (
+      {/* Create / Edit Modal */}
+      <Modal
+        visible={isModalVisible}
+        animationType="slide"
+        onRequestClose={resetForm}
+      >
         <View style={styles.modal}>
-          <Text style={styles.header}>Edit Playlist</Text>
+          <Text style={styles.header}>
+            {isEditing ? 'Edit Playlist' : 'Create Playlist'}
+          </Text>
+
           <TextInput
             style={styles.input}
-            value={editPlaylist.name}
-            onChangeText={(text) => setEditPlaylist({ ...editPlaylist, name: text })}
+            placeholder="Playlist name"
+            value={name}
+            onChangeText={setName}
           />
           <TextInput
             style={styles.input}
-            value={editPlaylist.description}
-            onChangeText={(text) => setEditPlaylist({ ...editPlaylist, description: text })}
+            placeholder="Description"
+            value={description}
+            onChangeText={setDescription}
           />
-          <Text style={styles.subHeader}>Edit Songs</Text>
+
+          <Text style={styles.subHeader}>Select Songs</Text>
           <FlatList
             data={songs}
             keyExtractor={(item) => item._id}
-            renderItem={({ item }) => {
-              const currentIds = editPlaylist.songs.map((s) => typeof s === 'string' ? s : s._id);
-              const isSelected = currentIds.includes(item._id);
-              return (
-                <TouchableOpacity
-                  onPress={() => {
-                    const updated = isSelected
-                      ? editPlaylist.songs.filter((id) => (typeof id === 'string' ? id : id._id) !== item._id)
-                      : [...currentIds, item._id];
-                    setEditPlaylist({ ...editPlaylist, songs: updated });
-                  }}
-                  style={[
-                    styles.songItem,
-                    isSelected && styles.songItemSelected,
-                  ]}
-                >
-                  <Text>{item.title}</Text>
-                </TouchableOpacity>
-              );
-            }}
+            renderItem={renderSong}
+            style={styles.songList}
           />
-          <Button title="Save Changes" onPress={handleUpdatePlaylist} />
-          <Button title="Cancel" onPress={() => setIsEditing(false)} />
+
+          <Button
+            title={isEditing ? 'Save Changes' : 'Create'}
+            onPress={isEditing ? handleUpdatePlaylist : handleCreatePlaylist}
+          />
+          <Button title="Cancel" color="#888" onPress={resetForm} />
         </View>
-      )}
+      </Modal>
     </View>
   );
 }
 
+/* ────────────────────────────────
+   Styles
+──────────────────────────────── */
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#fff' },
+  container: { flex: 1, padding: 20, backgroundColor: '#E0F7FA' },
   header: { fontSize: 22, fontWeight: 'bold', marginVertical: 10 },
   subHeader: { fontSize: 18, fontWeight: '600', marginTop: 15 },
   input: {
     backgroundColor: '#f0f0f0',
     padding: 10,
     marginVertical: 5,
-    borderRadius: 5,
+    borderRadius: 5
   },
   item: {
     padding: 10,
     backgroundColor: '#e8e8e8',
     marginVertical: 5,
-    borderRadius: 5,
+    borderRadius: 5
   },
   name: { fontSize: 18, fontWeight: 'bold' },
   description: { fontSize: 14, color: '#555' },
   songItem: {
     padding: 10,
     marginVertical: 4,
-    backgroundColor: "#eee",
-    borderRadius: 5,
+    backgroundColor: '#eee',
+    borderRadius: 5
   },
   songItemSelected: {
-    backgroundColor: "#cce5ff",
+    backgroundColor: '#cce5ff'
   },
   songList: {
-    maxHeight: 200,
-    marginBottom: 10,
-  },
-  deleteButton: {
-    marginTop: 8,
-    backgroundColor: "#ff4d4d",
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 5,
-    alignSelf: "flex-start",
+    maxHeight: 220,
+    marginBottom: 10
   },
   deleteText: {
-    color: "#fff",
-    fontWeight: "bold",
+    color: '#fff',
+    fontWeight: 'bold'
   },
   editButton: {
     marginTop: 8,
-    backgroundColor: "#4CAF50",
+    backgroundColor: '#4CAF50',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 5,
-    alignSelf: "flex-start",
+    alignSelf: 'flex-start'
   },
   editText: {
-    color: "#fff",
-    fontWeight: "bold",
+    color: '#fff',
+    fontWeight: 'bold'
+  },
+  shareButton: {
+    marginTop: 8,
+    backgroundColor: '#1e90ff',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 5,
+    alignSelf: 'flex-start'
+  },
+  shareText: {
+    color: '#fff',
+    fontWeight: 'bold'
   },
   modal: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "#fff",
+    flex: 1,
     padding: 20,
-    zIndex: 10,
+    backgroundColor: '#fff'
   },
   songInPlaylist: {
     fontSize: 14,
     color: '#333',
-    marginLeft: 10,
+    marginLeft: 10
   },
-  shareButton: {
-  marginTop: 8,
-  backgroundColor: "#1e90ff",
-  paddingVertical: 6,
-  paddingHorizontal: 12,
-  borderRadius: 5,
-  alignSelf: "flex-start",
-},
-shareText: {
-  color: "#fff",
-  fontWeight: "bold",
-},
-swipeDeleteButton: {
-  backgroundColor: '#ff4d4d',
-  justifyContent: 'center',
-  alignItems: 'center',
-  width: 80,
-  height: '100%',
-  borderRadius: 5,
-},
-
+  swipeDeleteButton: {
+    backgroundColor: '#ff4d4d',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 80,
+    height: '100%',
+    borderRadius: 5
+  }
 });
