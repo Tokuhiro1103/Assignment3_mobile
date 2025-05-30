@@ -25,7 +25,8 @@ import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatli
 
 /* ---------- Shake-related constants ---------- */
 const SHAKE_THRESHOLD_G = 1.6;      // g-force to detect shake
-const SHAKE_COOLDOWN_MS = 1500;     // debounce interval
+//const SHAKE_COOLDOWN_MS = 1500;     // debounce interval
+const SHAKE_COOLDOWN_MS = 4000;
 const RANDOM_SONG_COUNT = 5;        // how many songs to pick
 
 export default function PlaylistScreen() {

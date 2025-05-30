@@ -10,7 +10,7 @@ export default function SongScreen() {
 
   const fetchSongs = async () => {
     try {
-      const response = await fetch('https://n11705264.ifn666.com/assignment2test/api/songs'); // ←ここを実際のエンドポイントに書き換え
+      const response = await fetch('https://n11705264.ifn666.com/assignment2test/api/songs'); 
       const data = await response.json();
       setSongs(data);
     } catch (error) {

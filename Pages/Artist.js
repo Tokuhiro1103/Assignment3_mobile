@@ -10,7 +10,7 @@ export default function ArtistScreen() {
 
   const fetchArtists = async () => {
     try {
-      const response = await fetch('https://n11705264.ifn666.com/assignment2test/api/artists'); // 正しいURLに置き換えてください
+      const response = await fetch('https://n11705264.ifn666.com/assignment2test/api/artists'); 
       const data = await response.json();
       setArtists(data);
     } catch (error) {
